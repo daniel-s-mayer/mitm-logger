@@ -33,11 +33,14 @@ static void store_cert(uint8_t* key, size_t key_length, char* cert_domain);
 // May want to make the generator return instantly if a cert already exists for the domain.
 // Check about expiration dates etc.
 int generate_cert(char* ca_key_path, char* ca_crt_path, char* cert_domain) {
-    // Assume that if the cert exists, the key also exists.
-    char* composite_filename = calloc(strlen(cert_domain) + 9, sizeof(char)); // 9 for -crt.pem
-    strcpy(composite_filename, cert_domain);
-    strcat(composite_filename, "-crt.pem");
-    if (access(composite_filename, F_OK) == 0) {
+    // Check if both the cert and key files already exist. 
+    char* composite_cert_filename = calloc(strlen(cert_domain) + 9, sizeof(char)); // 9 for -crt.pem
+    strcpy(composite_cert_filename, cert_domain);
+    strcat(composite_cert_filename, "-crt.pem");
+    char* composite_key_filename = calloc(strlen(cert_domain) + 9, sizeof(char)); // 9 for -key.pem
+    strcpy(composite_key_filename, cert_domain);
+    strcat(composite_key_filename, "-key.pem");
+    if (access(composite_cert_filename, F_OK) == 0 && access(composite_key_filename, F_OK) == 0) {
         return 0; // The cert has already been generated! Think later about dates. 
     } 
 
