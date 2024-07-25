@@ -21,6 +21,10 @@
 #define REQ_DN_CN "VNF Application"
 #define ALT_NAM ""
 
+// MUTEX for protecting existence and certificate file creation checks.
+pthread_mutex_t cert_mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t key_mutex = PTHREAD_MUTEX_INITIALIZER;
+
 static void crt_to_pem(X509 *crt, uint8_t **crt_bytes, size_t *crt_size);
 static int generate_key_csr(EVP_PKEY **key, X509_REQ **req, char* cert_domain);
 static int generate_set_random_serial(X509 *crt);
@@ -34,16 +38,23 @@ static void store_cert(uint8_t* key, size_t key_length, char* cert_domain);
 // Check about expiration dates etc.
 int generate_cert(char* ca_key_path, char* ca_crt_path, char* cert_domain) {
     // Check if both the cert and key files already exist. 
-    char* composite_cert_filename = calloc(strlen(cert_domain) + 9, sizeof(char)); // 9 for -crt.pem
-    strcpy(composite_cert_filename, cert_domain);
+    char* composite_cert_filename = calloc(strlen(cert_domain) + 9 + strlen(CERTS_DIRECTORY) + 1, sizeof(char)); // 9 for -crt.pem
+    strcpy(composite_cert_filename, CERTS_DIRECTORY);
+	strcat(composite_cert_filename, cert_domain);
     strcat(composite_cert_filename, "-crt.pem");
-    char* composite_key_filename = calloc(strlen(cert_domain) + 9, sizeof(char)); // 9 for -key.pem
-    strcpy(composite_key_filename, cert_domain);
+    char* composite_key_filename = calloc(strlen(cert_domain) + 9 + strlen(CERTS_DIRECTORY) + 1, sizeof(char)); // 9 for -key.pem
+    strcpy(composite_key_filename, CERTS_DIRECTORY);
+	strcat(composite_key_filename, cert_domain);
     strcat(composite_key_filename, "-key.pem");
+	pthread_mutex_lock(&key_mutex);
+	pthread_mutex_lock(&cert_mutex);
     if (access(composite_cert_filename, F_OK) == 0 && access(composite_key_filename, F_OK) == 0) {
-        return 0; // The cert has already been generated! Think later about dates. 
+        pthread_mutex_unlock(&cert_mutex);
+		pthread_mutex_unlock(&key_mutex);
+		return 0; // The cert has already been generated! Think later about dates. 
     } 
-
+	pthread_mutex_unlock(&cert_mutex);
+	pthread_mutex_unlock(&key_mutex);
 
 	/* Load CA key and cert. */
 	EVP_PKEY *ca_key = NULL;
@@ -266,28 +277,38 @@ err:
 	return 0;
 }
 
+
+
 void store_key(uint8_t *key, size_t key_length, char* cert_domain)
 {
-    char* composite_filename = calloc(strlen(cert_domain) + 9, sizeof(char)); // 9 for -key.pem
-    strcpy(composite_filename, cert_domain);
+	pthread_mutex_lock(&key_mutex);
+    char* composite_filename = calloc(strlen(cert_domain) + 9 + strlen(CERTS_DIRECTORY) + 1, sizeof(char)); // 9 for -key.pem
+    strcpy(composite_filename, CERTS_DIRECTORY);
+	strcat(composite_filename, cert_domain);
     strcat(composite_filename, "-key.pem");
     FILE* key_file = fopen(composite_filename, "w");
 	for (size_t i = 0; i < key_length; i++) {
 		fprintf(key_file, "%c", key[i]);
 	}
+	free(composite_filename);
     fclose(key_file);
+	pthread_mutex_unlock(&key_mutex);
 }
 
 void store_cert(uint8_t *cert, size_t key_length, char* cert_domain)
 {
-    char* composite_filename = calloc(strlen(cert_domain) + 9, sizeof(char)); // 9 for -crt.pem
-    strcpy(composite_filename, cert_domain);
+	pthread_mutex_lock(&cert_mutex);
+    char* composite_filename = calloc(strlen(cert_domain) + 9 + strlen(CERTS_DIRECTORY) + 1, sizeof(char)); // 9 for -crt.pem
+    strcpy(composite_filename, CERTS_DIRECTORY);
+	strcat(composite_filename, cert_domain);
     strcat(composite_filename, "-crt.pem");
     FILE* key_file = fopen(composite_filename, "w");
 	for (size_t i = 0; i < key_length; i++) {
 		fprintf(key_file, "%c", cert[i]);
 	}
+	free(composite_filename);
     fclose(key_file);
+	pthread_mutex_unlock(&cert_mutex);
 }
 
 /*

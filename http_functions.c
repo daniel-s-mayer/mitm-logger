@@ -35,15 +35,22 @@ char* pointer_after_first_index(char* string, char search_char) {
 // Extracts the raw header lines (and stores them in char*** headers_array), in addition
 // to the body start (in char** body_start).
 // Don't free body_start, but do free headers_array.
+// 
+// If there's an error, just return -- the caller should detect the NULLity of an important field and kill itself. 
 void extract_headers(char* request_string, char*** headers_array, char** body_start, size_t* num_headers) {
+    // Determine the end point of the header (Required).
     char* heading_terminator = strstr(request_string, "\r\n\r\n");
+    if (heading_terminator == NULL) {
+        return;
+    }
     *body_start = (char*) ((unsigned long) heading_terminator + 4 * sizeof(char));
+
     // Next, get the lengths of all of the segments.
     size_t segments = 0;
     char* last_segment = request_string;
     char* terminator = strstr(request_string, "\r\n");
     size_t* segment_lengths = calloc(sizeof(size_t), 1);
-    while (terminator != heading_terminator) {
+    while (terminator < heading_terminator) {
         segment_lengths = realloc(segment_lengths, (segments + 1) * sizeof(size_t));
         segment_lengths[segments] = (unsigned long) terminator - (unsigned long) last_segment;
         last_segment = terminator + 2;
@@ -66,7 +73,11 @@ void extract_headers(char* request_string, char*** headers_array, char** body_st
     }
     *num_headers = segments;
     *headers_array = headers;
+
+    // Do some cleanup.
+    free(segment_lengths);
 }
+
 void analyze_http_protocol_data(char* data_line, char** type, char** path) {
     char* path_prespace = strstr(data_line, " ");
     char* type_prespace = strstr((char*) ( (unsigned long) path_prespace + (unsigned long) 1), " ");
