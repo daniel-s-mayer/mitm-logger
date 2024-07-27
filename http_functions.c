@@ -91,3 +91,30 @@ void analyze_http_protocol_data(char* data_line, char** type, char** path) {
     strncpy(path_copy, (char*) ((unsigned long) path_prespace + sizeof(char)), path_length);
     *path = path_copy;
 }
+
+SSL_CTX* create_ssl_server_context(char* cert_filename, char* key_filename) {
+    // Attempt to generate the SSL Server Context.
+    SSL_CTX* context = SSL_CTX_new(TLS_server_method());
+    if (context == NULL) {
+        perror("Unable to create SSL context.\n");
+        ERR_print_errors_fp(stderr);
+        return NULL;
+    }
+
+    // Configure the context by adding the provided certificates.
+    SSL_CTX_set_ecdh_auto(context, 1);
+
+    if (SSL_CTX_use_certificate_file(context, cert_filename, SSL_FILETYPE_PEM) <= 0) {
+        perror("Unable to read cert.pem.\n");
+        ERR_print_errors_fp(stderr);
+        return NULL;
+    }
+
+    if (SSL_CTX_use_PrivateKey_file(context, key_filename, SSL_FILETYPE_PEM) <= 0) {
+        perror("Unable to read key.pem.\n");
+        ERR_print_errors_fp(stderr);
+        return NULL;
+    }
+
+    return context;
+}

@@ -1,4 +1,5 @@
 #include "proxy.h"
+#include <sys/ioctl.h>
 
 /**
  * The main thread function to actually process the requests. 
@@ -9,6 +10,15 @@
  * The socket parameter should be the integer socket ID of the connected socket. 
  */
 void* connection_thread(void* socket) {
+    // PRECONDITION CHECK //
+    if (CONTRACTS) {
+        if (!socket) {
+            printf("Connection_thread precondition failure.\n");
+            exit(1);
+        }
+    }
+    // END PRECONDITION CHECK //
+
     // Make the thread independent.
     // NOTE: The callback function needs to kill it...
     pthread_detach(pthread_self());
@@ -19,8 +29,43 @@ void* connection_thread(void* socket) {
 
     // Read in the preliminary connection info.
     // TODO: Make this support a longer request (maybe...)
-    char buf[10000] = "";
-    read(newsockfd, buf, 10000);
+    size_t size_multiples = 1;
+    char* buf = calloc(10000, sizeof(char));
+    read(newsockfd, buf, 9999);
+    int bytes_unread;
+    ioctl(newsockfd, FIONREAD, &bytes_unread);
+    while (bytes_unread > 0) {
+        size_multiples++;
+        Realloc(buf, size_multiples * 9999 * sizeof(char));
+        read(newsockfd, buf, 9999);
+        ioctl(newsockfd, FIONREAD, &bytes_unread);
+    }
+
+    //while (read(newsockfd, buf + 1000 * (size_multiples - 1), 1000) > 0) {
+    //    printf("START\n");
+    //   size_multiples++;
+    //   write(0, buf, strlen(buf));
+    //   buf = realloc(buf, sizeof(char) * 1001 * size_multiples);
+    //   if (buf == NULL) {
+    //    printf("NULL buf!\n");
+    //    exit(1);
+    //   }
+    //   printf("END\n");
+    //}
+    printf("PAST\n");
+    //char buf[100000] = "";
+    //read(newsockfd, buf, 1000);
+
+
+
+    // CONTRACT CHECK: buf should be non-NULL //
+    if (CONTRACTS) {
+        if (!buf) {
+            printf("Buf non-nullity contract failed.\n");
+            exit(1);
+        }
+    }
+    // END CONTRACT CHECK //
     if (strncmp(buf, "CONNECT", 7) == 0) {
         process_connect(buf, newsockfd);
         // TODO: Add different handling for GET, POST, etc.
@@ -28,6 +73,7 @@ void* connection_thread(void* socket) {
         return;
     }
     close(newsockfd);
+    free(buf);
 }
 
 /**
