@@ -2,8 +2,11 @@
 
 
 // Strips all whitespace from a string in-place.
-char* strip_all_whitespace(char* string) {
-    char* unstripped_copy = calloc(sizeof(char), 1 + strlen(string));
+bool strip_all_whitespace(char* string) {
+    if (string == NULL) {
+        return false;
+    }
+    char* unstripped_copy = Calloc(sizeof(char), 1 + strlen(string));
     strncpy(unstripped_copy, string, strlen(string));
     size_t string_length = strlen(string);
     memset(string, '\0', string_length);
@@ -17,6 +20,7 @@ char* strip_all_whitespace(char* string) {
         }
     }
     free(unstripped_copy);
+    return true;
 }
 
 // Returns a pointer to the string after the first index of the requested character.
@@ -37,11 +41,18 @@ char* pointer_after_first_index(char* string, char search_char) {
 // Don't free body_start, but do free headers_array.
 // 
 // If there's an error, just return -- the caller should detect the NULLity of an important field and kill itself. 
-void extract_headers(char* request_string, char*** headers_array, char** body_start, size_t* num_headers) {
+// Returns true if everything was nominally successful and false otherwise. 
+bool extract_headers(char* request_string, char*** headers_array, char** body_start, size_t* num_headers) {
+    // Pre-processing checks.
+    if (request_string == NULL || headers_array == NULL || body_start == NULL || num_headers == NULL) {
+        printf("Extraction failed: input nullity.\n");
+        return false;
+    }
     // Determine the end point of the header (Required).
     char* heading_terminator = strstr(request_string, "\r\n\r\n");
     if (heading_terminator == NULL) {
-        return;
+        printf("Extraction failed: bad double terminator.\n");
+        return false;
     }
     *body_start = (char*) ((unsigned long) heading_terminator + 4 * sizeof(char));
 
@@ -49,24 +60,37 @@ void extract_headers(char* request_string, char*** headers_array, char** body_st
     size_t segments = 0;
     char* last_segment = request_string;
     char* terminator = strstr(request_string, "\r\n");
-    size_t* segment_lengths = calloc(sizeof(size_t), 1);
+    if (terminator == NULL) {
+        printf("Extraction failed: bad single terminator.\n");
+        return false;
+    }
+    size_t* segment_lengths = Calloc(sizeof(size_t), 1);
     while (terminator < heading_terminator) {
         segment_lengths = realloc(segment_lengths, (segments + 1) * sizeof(size_t));
         segment_lengths[segments] = (unsigned long) terminator - (unsigned long) last_segment;
         last_segment = terminator + 2;
         terminator = strstr(last_segment, "\r\n");
+        if (terminator == NULL) {
+            printf("Extraction failed: #2 bad terminator.\n");
+            return false;
+        }
         segments++;
     }
     segment_lengths = realloc(segment_lengths, (segments + 1) * sizeof(size_t));
     segment_lengths[segments] = (unsigned long) heading_terminator - (unsigned long) last_segment;
     segments++;
 
+    if (segments < 1) {
+        printf("Extraction failed: no segments.\n");
+        return false;
+    }
+
 
     // Copy out the specific headers.
-    char** headers = calloc(segments, sizeof(char*));
+    char** headers = Calloc(segments, sizeof(char*));
     char* cur_start = request_string;
     for (size_t i = 0; i < segments; i++) {
-        char* header = calloc(segment_lengths[i] + 1, sizeof(char));
+        char* header = Calloc(segment_lengths[i] + 1, sizeof(char));
         strncpy(header, cur_start, segment_lengths[i]);
         headers[i] = header;
         cur_start = cur_start + segment_lengths[i] + 2;
@@ -76,20 +100,39 @@ void extract_headers(char* request_string, char*** headers_array, char** body_st
 
     // Do some cleanup.
     free(segment_lengths);
+    return true;
 }
 
-void analyze_http_protocol_data(char* data_line, char** type, char** path) {
+// Returns true if analysis was successful and false otherwise.
+bool analyze_http_protocol_data(char* data_line, char** type, char** path) {
+    // Pre-checks: verify that there is information that can be extracted. 
+    if (data_line == NULL || type == NULL || path == NULL) {
+        return false;
+    }
+
+    // Begin the extraction process. 
     char* path_prespace = strstr(data_line, " ");
+    if (path_prespace == NULL) {
+        return false;
+    }
     char* type_prespace = strstr((char*) ( (unsigned long) path_prespace + (unsigned long) 1), " ");
-    // Using pointer arithmetic.
-    size_t type_length = ((unsigned long) path_prespace - (unsigned long) data_line) / (sizeof(char));
-    char* type_copy = calloc(sizeof(char), type_length + 1);
+    if (type_prespace == NULL) {
+        return false;
+    }
+
+    // Use pointer arithmetic to calculate what needs to be copied. 
+    long type_length = ((long) path_prespace - (long) data_line) / ((long) sizeof(char));
+    if (type_length <= 0) {
+        return false;
+    }
+    char* type_copy = Calloc(sizeof(char), type_length + 1);
     strncpy(type_copy, data_line, type_length);
     *type = type_copy;
-    size_t path_length = ((unsigned long) type_prespace - (unsigned long) path_prespace) / (sizeof(char)) - 1;
-    char* path_copy = calloc(sizeof(char), path_length + 1);
+    long path_length = ((long) type_prespace - (long) path_prespace) / ((long) sizeof(char)) - 1;
+    char* path_copy = Calloc(sizeof(char), path_length + 1);
     strncpy(path_copy, (char*) ((unsigned long) path_prespace + sizeof(char)), path_length);
     *path = path_copy;
+    return true;
 }
 
 SSL_CTX* create_ssl_server_context(char* cert_filename, char* key_filename) {
@@ -117,4 +160,16 @@ SSL_CTX* create_ssl_server_context(char* cert_filename, char* key_filename) {
     }
 
     return context;
+}
+
+// For finding the last index of a char in a string.
+int last_index_of(char character, char* string) {
+    size_t string_length = strlen(string);
+    int last_index = -1;
+    for (size_t i = 0; i < string_length; i++) {
+        if (string[i] == character) {
+            last_index = (int) i;
+        }
+    }
+    return last_index;
 }

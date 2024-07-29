@@ -9,7 +9,6 @@
  * Program now requires -- or look into programmatically creating -- a "certs" directory. 
  */
 
-
 /**
  * 
  * NEED TO FINISH UPDATING THIS FILE TO INCLUDE THE DIRECTORY FOR CERTS!
@@ -18,7 +17,12 @@
 
 #include "proxy.h"
 
+sem_t acc_sem;
+
+
 #define PORT 13000
+
+
 
 
 /**
@@ -40,6 +44,13 @@ int main() {
 
 
     signal(SIGPIPE, SIG_IGN);
+
+    // Initialize the thread-control semaphore.
+    int sem_result = sem_init(&acc_sem, 0, 150); // 100 threads, right?
+    if (sem_result != 0) {
+        printf("Semaphore initialization error: %s \n", strerror(errno));
+        exit(1);
+    }
     
     // Create the socket for the listening port. 
     int sockfd = socket(AF_INET, SOCK_STREAM, 0);
@@ -80,6 +91,10 @@ int main() {
         }
         // Start the thread.
         pthread_t thread;
+        sem_wait(&acc_sem);
+        // Further semaphore work requires complete knowledge of exit paths etc.
         pthread_create(&thread, NULL, connection_thread, (void*) newsockfd);
+        //pthread_attr_setstacksize(pthread_attr_t *attr, size_t stacksize)
+        
     }
 }

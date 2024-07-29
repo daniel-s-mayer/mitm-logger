@@ -3,15 +3,10 @@
 /**
  * TODO: Mutex on writing to and reading from the generated cert files "cache".
  */
-size_t write_callback(char *data, size_t size, size_t nmemb, void* ssl_struct_void) {
-
-    ssl_struct_t* ssl_struct = (ssl_struct_t*) ssl_struct_void;
-    SSL *ssl = ssl_struct->ssl;
+size_t write_callback(char *data, size_t size, size_t nmemb, void* ssl_void) {
+    SSL *ssl = (SSL*) ssl_void;
     size_t realsize = nmemb * size;
     SSL_write(ssl, data, realsize);
-    ssl_struct->indicator = 1;
-    static int successful_returns = 0;
-    successful_returns++;
     //printf("Successful return completed (%d).\n", successful_returns);
     
     return realsize;
@@ -25,13 +20,15 @@ size_t write_callback(char *data, size_t size, size_t nmemb, void* ssl_struct_vo
  * 
  * TODO: Check on memory leaks r/e parsing...
  * 
+ * This should return upon error. 
+ * 
  * URL is Freeable
  */
-void complete_curl_request(char** test_headers_array, char* test_body_start, char* url, char* request_type, ssl_struct_t* ssl_struct, size_t num_headers) {
+void complete_curl_request(char** test_headers_array, char* test_body_start, char* url, char* request_type, SSL* ssl, size_t num_headers) {
     // PRECONDITION CHECKS //
     if (CONTRACTS) {
         // Nullity checks.
-        if (!test_headers_array || !test_body_start || !url || !request_type || !ssl_struct) {
+        if (!test_headers_array || !test_body_start || !url || !request_type || !ssl) {
             printf("cURL precondition nullity failed.\n");
             exit(1);
         }
@@ -44,14 +41,13 @@ void complete_curl_request(char** test_headers_array, char* test_body_start, cha
     CURLcode res;
     curl = curl_easy_init();
     //curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
-    
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 25); // Limit requests to 25 seconds. 
     // Set the URL.
     curl_easy_setopt(curl, CURLOPT_URL, url);
-    printf("Requesting URL: '%s' \n", url);
-    Free(url);
+
     
     // Add the headers.
-    struct curl_slist *custom_headers = NULL;
+    struct curl_slist* custom_headers = NULL;
     // Remove all of the pesky defaults.
     // custom_headers = curl_slist_append(custom_headers, "Host:"); // Blanking a header value removes it (good for defaults).
     custom_headers = curl_slist_append(custom_headers, "accept:");         // Blanking a header value removes it (good for defaults).
@@ -80,7 +76,7 @@ void complete_curl_request(char** test_headers_array, char* test_body_start, cha
 
     // Add the callback function.
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, ssl_struct);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, ssl);
     curl_easy_setopt(curl, CURLOPT_HEADER, 1L);
 
     
@@ -103,5 +99,8 @@ void complete_curl_request(char** test_headers_array, char* test_body_start, cha
     /* Check for errors */
     if (res != CURLE_OK)
         fprintf(stderr, "curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
+
+    // Do some cleanup.
     curl_easy_cleanup(curl);
+    curl_slist_free_all(custom_headers);
 }
