@@ -32,6 +32,8 @@ sem_t acc_sem;
  * spawning a new thread to actually process the requests. 
  */
 int main() {
+    // Apparently we need to set up something ("the environment") to be libcURL compatible...
+    curl_global_init(CURL_GLOBAL_ALL); 
     // Immediately try to create the certs directory.
     // This way, we only try to do it once per execution.
     errno = 0;

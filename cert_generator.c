@@ -37,12 +37,16 @@ static void store_cert(uint8_t* key, size_t key_length, char* cert_domain);
 // May want to make the generator return instantly if a cert already exists for the domain.
 // Check about expiration dates etc.
 int generate_cert(char* ca_key_path, char* ca_crt_path, char* cert_domain) {
+	// Nullity pre-checks
+	if (ca_key_path == NULL || ca_crt_path == NULL || cert_domain == NULL) {
+		return -1;
+	}
     // Check if both the cert and key files already exist. 
-    char* composite_cert_filename = calloc(strlen(cert_domain) + 9 + strlen(CERTS_DIRECTORY) + 1, sizeof(char)); // 9 for -crt.pem
+    char* composite_cert_filename = Calloc(strlen(cert_domain) + 9 + strlen(CERTS_DIRECTORY) + 1, sizeof(char)); // 9 for -crt.pem
     strcpy(composite_cert_filename, CERTS_DIRECTORY);
 	strcat(composite_cert_filename, cert_domain);
     strcat(composite_cert_filename, "-crt.pem");
-    char* composite_key_filename = calloc(strlen(cert_domain) + 9 + strlen(CERTS_DIRECTORY) + 1, sizeof(char)); // 9 for -key.pem
+    char* composite_key_filename = Calloc(strlen(cert_domain) + 9 + strlen(CERTS_DIRECTORY) + 1, sizeof(char)); // 9 for -key.pem
     strcpy(composite_key_filename, CERTS_DIRECTORY);
 	strcat(composite_key_filename, cert_domain);
     strcat(composite_key_filename, "-key.pem");
@@ -51,6 +55,8 @@ int generate_cert(char* ca_key_path, char* ca_crt_path, char* cert_domain) {
     if (access(composite_cert_filename, F_OK) == 0 && access(composite_key_filename, F_OK) == 0) {
         pthread_mutex_unlock(&cert_mutex);
 		pthread_mutex_unlock(&key_mutex);
+		free(composite_cert_filename);
+		free(composite_key_filename);
 		return 0; // The cert has already been generated! Think later about dates. 
     } 
 	pthread_mutex_unlock(&cert_mutex);
@@ -93,6 +99,8 @@ int generate_cert(char* ca_key_path, char* ca_crt_path, char* cert_domain) {
 	X509_free(crt);
 	free(key_bytes);
 	free(crt_bytes);
+	free(composite_cert_filename);
+	free(composite_key_filename);
 
 	return 0;
 }
@@ -282,7 +290,7 @@ err:
 void store_key(uint8_t *key, size_t key_length, char* cert_domain)
 {
 	pthread_mutex_lock(&key_mutex);
-    char* composite_filename = calloc(strlen(cert_domain) + 9 + strlen(CERTS_DIRECTORY) + 1, sizeof(char)); // 9 for -key.pem
+    char* composite_filename = Calloc(strlen(cert_domain) + 9 + strlen(CERTS_DIRECTORY) + 1, sizeof(char)); // 9 for -key.pem
     strcpy(composite_filename, CERTS_DIRECTORY);
 	strcat(composite_filename, cert_domain);
     strcat(composite_filename, "-key.pem");

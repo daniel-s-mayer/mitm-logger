@@ -41,9 +41,10 @@ void complete_curl_request(char** test_headers_array, char* test_body_start, cha
     CURLcode res;
     curl = curl_easy_init();
     //curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
-    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 25); // Limit requests to 25 seconds. 
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 15); // Limit requests to 25 seconds. 
     // Set the URL.
     curl_easy_setopt(curl, CURLOPT_URL, url);
+    curl_easy_setopt(curl, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
 
     
     // Add the headers.
